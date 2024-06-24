@@ -142,11 +142,13 @@ class StateCVRP(NamedTuple):
         else:
             visited_loc = mask_long2bool(self.visited_, n=self.demand.size(-1))
 
+        # 对于需求，通过索引 id 插入 steps_dim，对于已用容量，插入节点维度以进行广播
         # For demand steps_dim is inserted by indexing with id, for used_capacity insert node dim for broadcasting
         exceeds_cap = (self.demand[self.ids, :] + self.used_capacity[:, :, None] > self.VEHICLE_CAPACITY)
+        # 无法访问的节点是那些已经被访问过或当前需求过大的节点
         # Nodes that cannot be visited are already visited or too much demand to be served now
         mask_loc = visited_loc.to(exceeds_cap.dtype) | exceeds_cap
-
+        # 判断是否可以访问depot，如果刚刚访问了仓库且仍有未服务的节点，则不能再次访问仓库
         # Cannot visit the depot if just visited and still unserved nodes
         mask_depot = (self.prev_a == 0) & ((mask_loc == 0).int().sum(-1) > 0)
         return torch.cat((mask_depot[:, :, None], mask_loc), -1)

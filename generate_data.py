@@ -92,13 +92,22 @@ def generate_pctsp_data(dataset_size, pctsp_size, penalty_factor=3):
         stochastic_prize.tolist()
     ))
 
+def generate_kf_data(dataset_size, graph_size, capacity_size):
+    deal_time = np.random.uniform(0, 1, size=(dataset_size, graph_size, capacity_size))
+    vehicle_capacity = np.random.uniform(0, 1, size=(dataset_size, capacity_size))
+
+    return list(zip(
+        deal_time.tolist(),
+        vehicle_capacity.tolist()
+    ))
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--filename", help="Filename of the dataset to create (ignores datadir)")
     parser.add_argument("--data_dir", default='data', help="Create datasets in data_dir/problem (default 'data')")
-    parser.add_argument("--name", type=str, required=True, help="Name to identify dataset")
-    parser.add_argument("--problem", type=str, default='all',
+    parser.add_argument("--name", type=str, default='kf', help="Name to identify dataset")
+    parser.add_argument("--problem", type=str, default='kf',
                         help="Problem, 'tsp', 'vrp', 'pctsp' or 'op_const', 'op_unif' or 'op_dist'"
                              " or 'all' to generate all")
     parser.add_argument('--data_distribution', type=str, default='all',
@@ -107,8 +116,9 @@ if __name__ == "__main__":
     parser.add_argument("--dataset_size", type=int, default=10000, help="Size of the dataset")
     parser.add_argument('--graph_sizes', type=int, nargs='+', default=[20, 50, 100],
                         help="Sizes of problem instances (default 20, 50, 100)")
-    parser.add_argument("-f", action='store_true', help="Set true to overwrite")
+    parser.add_argument("-f", default=True, action='store_true', help="Set true to overwrite")
     parser.add_argument('--seed', type=int, default=1234, help="Random seed")
+    parser.add_argument('--capacity_size', type=int, default=10, help="vehicle num with capacity")
 
     opts = parser.parse_args()
 
@@ -119,7 +129,8 @@ if __name__ == "__main__":
         'tsp': [None],
         'vrp': [None],
         'pctsp': [None],
-        'op': ['const', 'unif', 'dist']
+        'op': ['const', 'unif', 'dist'],
+        'kf': [None]
     }
     if opts.problem == 'all':
         problems = distributions_per_problem
@@ -159,6 +170,8 @@ if __name__ == "__main__":
                     dataset = generate_pctsp_data(opts.dataset_size, graph_size)
                 elif problem == "op":
                     dataset = generate_op_data(opts.dataset_size, graph_size, prize_type=distribution)
+                elif problem == "kf":
+                    dataset = generate_kf_data(opts.dataset_size, graph_size, capacity_size=opts.capacity_size)
                 else:
                     assert False, "Unknown problem: {}".format(problem)
 

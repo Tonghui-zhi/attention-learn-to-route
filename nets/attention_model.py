@@ -64,6 +64,7 @@ class AttentionModel(nn.Module):
         self.is_vrp = problem.NAME == 'cvrp' or problem.NAME == 'sdvrp'
         self.is_orienteering = problem.NAME == 'op'
         self.is_pctsp = problem.NAME == 'pctsp'
+        self.is_kf = problem.NAME == 'kf'
 
         self.tanh_clipping = tanh_clipping
 
@@ -87,14 +88,19 @@ class AttentionModel(nn.Module):
 
             # Special embedding projection for depot node
             self.init_embed_depot = nn.Linear(2, embedding_dim)
-            
+
             if self.is_vrp and self.allow_partial:  # Need to include the demand if split delivery allowed
                 self.project_node_step = nn.Linear(1, 3 * embedding_dim, bias=False)
+        elif self.is_kf:  # kf
+            self.init_embed_depot = nn.Linear(1, embedding_dim)
+
+            step_context_dim = embedding_dim + 1
+            node_dim = 10 * 2  # 10个车的容量+10个车和需求的距离
         else:  # TSP
             assert problem.NAME == "tsp", "Unsupported problem: {}".format(problem.NAME)
             step_context_dim = 2 * embedding_dim  # Embedding of first and last node
             node_dim = 2  # x, y
-            
+
             # Learned input symbols for first action
             self.W_placeholder = nn.Parameter(torch.Tensor(2 * embedding_dim))
             self.W_placeholder.data.uniform_(-1, 1)  # Placeholder should be in range of activations
@@ -202,9 +208,9 @@ class AttentionModel(nn.Module):
 
         if self.is_vrp or self.is_orienteering or self.is_pctsp:
             if self.is_vrp:
-                features = ('demand', )
+                features = ('demand',)
             elif self.is_orienteering:
-                features = ('prize', )
+                features = ('prize',)
             else:
                 assert self.is_pctsp
                 features = ('deterministic_prize', 'penalty')
@@ -218,6 +224,23 @@ class AttentionModel(nn.Module):
                 ),
                 1
             )
+        # kf
+        elif self.is_kf:
+            features = ('vehicle_capacity',)
+            vehicle_tensor = input['vehicle_capacity']
+            vehicle_tensor = vehicle_tensor.unsqueeze(1)
+            vehicle_tensor = vehicle_tensor.expand(-1, input['deal_time'].size(1), -1)
+            return torch.cat(
+                (
+                    self.init_embed_depot(torch.zeros(size=(input['deal_time'].size(0), 1)))[:, None, :],
+                    self.init_embed(torch.cat((
+                        input['deal_time'],
+                        vehicle_tensor
+                    ), -1))
+                ),
+                1
+            )
+
         # TSP
         return self.init_embed(input)
 
@@ -250,6 +273,7 @@ class AttentionModel(nn.Module):
                     fixed = fixed[unfinished]
 
             log_p, mask = self._get_log_p(fixed, state)
+            assert not torch.isnan(log_p).any()
 
             # Select the indices of the next nodes in the sequences, result (batch_size) long
             selected = self._select_node(log_p.exp()[:, 0, :], mask[:, 0, :])  # Squeeze out steps dimension
@@ -360,14 +384,12 @@ class AttentionModel(nn.Module):
         if normalize:
             log_p = torch.log_softmax(log_p / self.temp, dim=-1)
 
-        assert not torch.isnan(log_p).any()
-
         return log_p, mask
 
     def _get_parallel_step_context(self, embeddings, state, from_depot=False):
         """
         Returns the context per step, optionally for multiple steps at once (for efficient evaluation of the model)
-        
+
         :param embeddings: (batch_size, graph_size, embed_dim)
         :param prev_a: (batch_size, num_steps)
         :param first_a: Only used when num_steps = 1, action of first step or None if first step
@@ -397,8 +419,8 @@ class AttentionModel(nn.Module):
                             embeddings,
                             1,
                             current_node.contiguous()
-                                .view(batch_size, num_steps, 1)
-                                .expand(batch_size, num_steps, embeddings.size(-1))
+                            .view(batch_size, num_steps, 1)
+                            .expand(batch_size, num_steps, embeddings.size(-1))
                         ).view(batch_size, num_steps, embeddings.size(-1)),
                         self.problem.VEHICLE_CAPACITY - state.used_capacity[:, :, None]
                     ),
@@ -411,8 +433,8 @@ class AttentionModel(nn.Module):
                         embeddings,
                         1,
                         current_node.contiguous()
-                            .view(batch_size, num_steps, 1)
-                            .expand(batch_size, num_steps, embeddings.size(-1))
+                        .view(batch_size, num_steps, 1)
+                        .expand(batch_size, num_steps, embeddings.size(-1))
                     ).view(batch_size, num_steps, embeddings.size(-1)),
                     (
                         state.get_remaining_length()[:, :, None]
@@ -422,8 +444,35 @@ class AttentionModel(nn.Module):
                 ),
                 -1
             )
+        elif self.is_kf:
+            # Embedding of previous node + remaining capacity
+            if from_depot:
+                # 1st dimension is node idx, but we do not squeeze it since we want to insert step dimension
+                # i.e. we actually want embeddings[:, 0, :][:, None, :] which is equivalent
+                return torch.cat(
+                    (
+                        embeddings[:, 0:1, :].expand(batch_size, num_steps, embeddings.size(-1)),
+                        # used capacity is 0 after visiting depot
+                        self.problem.VEHICLE_CAPACITY - torch.zeros_like(state.used_capacity[:, :, None])
+                    ),
+                    -1
+                )
+            else:
+                return torch.cat(
+                    (
+                        torch.gather(
+                            embeddings,
+                            1,
+                            current_node.contiguous()
+                            .view(batch_size, num_steps, 1)
+                            .expand(batch_size, num_steps, embeddings.size(-1))
+                        ).view(batch_size, num_steps, embeddings.size(-1)),
+                        self.problem.VEHICLE_CAPACITY - state.used_capacity[:, :, None]
+                    ),
+                    -1
+                )
         else:  # TSP
-        
+
             if num_steps == 1:  # We need to special case if we have only 1 step, may be the first or not
                 if state.i.item() == 0:
                     # First and only step, ignore prev_a (this is a placeholder)
@@ -431,7 +480,8 @@ class AttentionModel(nn.Module):
                 else:
                     return embeddings.gather(
                         1,
-                        torch.cat((state.first_a, current_node), 1)[:, :, None].expand(batch_size, 2, embeddings.size(-1))
+                        torch.cat((state.first_a, current_node), 1)[:, :, None].expand(batch_size, 2,
+                                                                                       embeddings.size(-1))
                     ).view(batch_size, 1, -1)
             # More than one step, assume always starting with first
             embeddings_per_step = embeddings.gather(
@@ -487,7 +537,6 @@ class AttentionModel(nn.Module):
     def _get_attention_node_data(self, fixed, state):
 
         if self.is_vrp and self.allow_partial:
-
             # Need to provide information of how much each node has already been served
             # Clone demands as they are needed by the backprop whereas they are updated later
             glimpse_key_step, glimpse_val_step, logit_key_step = \

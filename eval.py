@@ -164,7 +164,7 @@ def _eval_dataset(model, dataset, width, softmax_temp, opts, device):
                 seq = seq.tolist()  # No need to trim as all are same length
             elif model.problem.NAME in ("cvrp", "sdvrp"):
                 seq = np.trim_zeros(seq).tolist() + [0]  # Add depot
-            elif model.problem.NAME in ("op", "pctsp"):
+            elif model.problem.NAME in ("op", "pctsp", "kf"):
                 seq = np.trim_zeros(seq)  # We have the convention to exclude the depot
             else:
                 assert False, "Unkown problem: {}".format(model.problem.NAME)
@@ -177,8 +177,8 @@ def _eval_dataset(model, dataset, width, softmax_temp, opts, device):
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("datasets", nargs='+', help="Filename of the dataset(s) to evaluate")
-    parser.add_argument("-f", action='store_true', help="Set true to overwrite")
+    parser.add_argument("--datasets", default=['data/kf/kf20_kf_seed1234.pkl'], nargs='+', help="Filename of the dataset(s) to evaluate")
+    parser.add_argument("-f", default=True, action='store_true', help="Set true to overwrite")
     parser.add_argument("-o", default=None, help="Name of the results file to write")
     parser.add_argument('--val_size', type=int, default=10000,
                         help='Number of instances used for reporting validation performance')
@@ -191,11 +191,11 @@ if __name__ == "__main__":
     parser.add_argument('--width', type=int, nargs='+',
                         help='Sizes of beam to use for beam search (or number of samples for sampling), '
                              '0 to disable (default), -1 for infinite')
-    parser.add_argument('--decode_strategy', type=str,
+    parser.add_argument('--decode_strategy', type=str, default='greedy',
                         help='Beam search (bs), Sampling (sample) or Greedy (greedy)')
     parser.add_argument('--softmax_temperature', type=parse_softmax_temperature, default=1,
                         help="Softmax temperature (sampling or bs)")
-    parser.add_argument('--model', type=str)
+    parser.add_argument('--model', default='outputs/kf_20/run_20240624T143124', type=str)
     parser.add_argument('--no_cuda', action='store_true', help='Disable CUDA')
     parser.add_argument('--no_progress_bar', action='store_true', help='Disable progress bar')
     parser.add_argument('--compress_mask', action='store_true', help='Compress mask into long')
