@@ -41,6 +41,7 @@ class KF(object):
         over_loaded_cost = {}
         finish_time_cost = {}
         final_cost = {}
+        overall_deal_time = {}
         for idx in range(batch_size):
             routes_dict[idx] = [r[r != 0] for r in np.split(pi[idx], np.where(pi[idx] == 0)[0]) if (r != 0).any()]
             if len(routes_dict[idx]) == 0:
@@ -49,12 +50,16 @@ class KF(object):
                 finish_time_cost[idx] = torch.tensor(100, dtype=torch.float64)
                 final_cost[idx] = torch.tensor(100, dtype=torch.float64)
             else:
-                over_loaded_cost[idx] = torch.sum(torch.stack([torch.clamp(torch.tensor(len(route) * (1 / dataset['deal_time'].size(1)) - dataset['vehicle_capacity'][idx, vehicle_id]), min=0)
-                       for vehicle_id, route in enumerate(routes_dict[idx])]))
-                deal_time = torch.cat((dataset['deal_time'], torch.zeros(batch_size, 1, vehicle_num)), dim=1)
+                # 以最晚完成时间为loss，不考虑员工负荷
+                # over_loaded_cost[idx] = torch.sum(torch.stack([torch.clamp(torch.tensor(len(route) * (1 / dataset['deal_time'].size(1)) - dataset['vehicle_capacity'][idx, vehicle_id]), min=0)
+                #        for vehicle_id, route in enumerate(routes_dict[idx])]))
+                deal_time = torch.cat((torch.zeros(batch_size, 1, vehicle_num), dataset['deal_time']), dim=1)
+                overall_deal_time[idx] = torch.sum(torch.stack([deal_time[idx, route, vehicle_id].sum() for vehicle_id, route in enumerate(routes_dict[idx])]))
                 finish_time_cost[idx] = torch.max(torch.stack([deal_time[idx, route, vehicle_id].sum() for vehicle_id, route in enumerate(routes_dict[idx])]))
-                final_cost[idx] = over_loaded_cost[idx] + finish_time_cost[idx]
+                final_cost[idx] = (overall_deal_time[idx] + 3 * finish_time_cost[idx])
+        # 选取最长处理时长作为每批的loss, cost.shape = [batch_size, 1]
         cost = torch.stack(list(final_cost.values()), dim=0)
+        # 选取总处理时长作为loss
         return cost, None
 
     @staticmethod

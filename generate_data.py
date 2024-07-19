@@ -106,15 +106,15 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--filename", help="Filename of the dataset to create (ignores datadir)")
     parser.add_argument("--data_dir", default='data', help="Create datasets in data_dir/problem (default 'data')")
-    parser.add_argument("--name", type=str, default='kf', help="Name to identify dataset")
-    parser.add_argument("--problem", type=str, default='kf',
+    parser.add_argument("--name", default='10', type=str, help="Name to identify dataset")
+    parser.add_argument("--problem", type=str, default='kf_plot_data',
                         help="Problem, 'tsp', 'vrp', 'pctsp' or 'op_const', 'op_unif' or 'op_dist'"
                              " or 'all' to generate all")
     parser.add_argument('--data_distribution', type=str, default='all',
                         help="Distributions to generate for problem, default 'all'.")
 
-    parser.add_argument("--dataset_size", type=int, default=10000, help="Size of the dataset")
-    parser.add_argument('--graph_sizes', type=int, nargs='+', default=[20, 50, 100],
+    parser.add_argument("--dataset_size", type=int, default=10, help="Size of the dataset")
+    parser.add_argument('--graph_sizes', type=int, nargs='+', default=[x for x in range(50, 501, 10)],
                         help="Sizes of problem instances (default 20, 50, 100)")
     parser.add_argument("-f", default=True, action='store_true', help="Set true to overwrite")
     parser.add_argument('--seed', type=int, default=1234, help="Random seed")
@@ -130,7 +130,8 @@ if __name__ == "__main__":
         'vrp': [None],
         'pctsp': [None],
         'op': ['const', 'unif', 'dist'],
-        'kf': [None]
+        'kf': [None],
+        'kf_plot_data': [None]
     }
     if opts.problem == 'all':
         problems = distributions_per_problem
@@ -170,11 +171,11 @@ if __name__ == "__main__":
                     dataset = generate_pctsp_data(opts.dataset_size, graph_size)
                 elif problem == "op":
                     dataset = generate_op_data(opts.dataset_size, graph_size, prize_type=distribution)
-                elif problem == "kf":
+                elif problem in ["kf", "kf_plot_data"]:
                     dataset = generate_kf_data(opts.dataset_size, graph_size, capacity_size=opts.capacity_size)
                 else:
                     assert False, "Unknown problem: {}".format(problem)
 
-                print(dataset[0])
+                # print(dataset[0])
 
                 save_dataset(dataset, filename)

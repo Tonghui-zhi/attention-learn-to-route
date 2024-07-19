@@ -6,6 +6,7 @@ import numpy as np
 import itertools
 from tqdm import tqdm
 from utils import load_model, move_to
+# from utils.data_process import construct_graph_element_
 from utils.data_utils import save_dataset
 from torch.utils.data import DataLoader
 import time
@@ -177,10 +178,10 @@ def _eval_dataset(model, dataset, width, softmax_temp, opts, device):
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("--datasets", default=['data/kf/kf20_kf_seed1234.pkl'], nargs='+', help="Filename of the dataset(s) to evaluate")
+    parser.add_argument("--datasets", default=['data/kf/kf100_test_seed1234.pkl'], nargs='+', help="Filename of the dataset(s) to evaluate")
     parser.add_argument("-f", default=True, action='store_true', help="Set true to overwrite")
     parser.add_argument("-o", default=None, help="Name of the results file to write")
-    parser.add_argument('--val_size', type=int, default=10000,
+    parser.add_argument('--val_size', type=int, default=10,
                         help='Number of instances used for reporting validation performance')
     parser.add_argument('--offset', type=int, default=0,
                         help='Offset where to start in dataset (default 0)')
@@ -195,7 +196,8 @@ if __name__ == "__main__":
                         help='Beam search (bs), Sampling (sample) or Greedy (greedy)')
     parser.add_argument('--softmax_temperature', type=parse_softmax_temperature, default=1,
                         help="Softmax temperature (sampling or bs)")
-    parser.add_argument('--model', default='outputs/kf_20/run_20240624T143124', type=str)
+    parser.add_argument('--model', default='outputs/kf_100/run_20240719T132446', type=str)
+    # parser.add_argument('--model', default='outputs/kf_100/run_20240709T141034', type=str)
     parser.add_argument('--no_cuda', action='store_true', help='Disable CUDA')
     parser.add_argument('--no_progress_bar', action='store_true', help='Disable progress bar')
     parser.add_argument('--compress_mask', action='store_true', help='Compress mask into long')

@@ -93,13 +93,13 @@ class StateKF(NamedTuple):
         selected = selected[:, None]
         prev_a = selected * (vehicle_id < vehicle_num)[:, None].type(torch.int64)
         batch_size = self.deal_time.size(0) # 批次数
-        n_loc = self.deal_time.size(-1) # 车辆数
+        n_loc = self.deal_time.size(1)
 
         # 当前所在的需求点
         cur_coord = selected
 
         # 计算每辆车的当前负载
-        deal_time = torch.cat((torch.zeros(batch_size, 1, n_loc), self.deal_time), dim=1)
+        deal_time = torch.cat((torch.zeros(batch_size, 1, vehicle_num), self.deal_time), dim=1)
         # print(self.deal_time.size(), selected.size(), vehicle_id.size(), self.lengths.size(), self.deal_time.size())
         update_mask = (self.vehicle_id < vehicle_num)[:, None].float()
         lengths_update = deal_time[
@@ -111,7 +111,7 @@ class StateKF(NamedTuple):
         lengths = self.lengths + lengths_update
 
         # 增加每辆车的负载，如果是depot则把车辆负载清零
-        used_capacity = (self.used_capacity + 1/self.deal_time.size(1)) * (prev_a != 0).float()
+        used_capacity = (self.used_capacity + 1/n_loc) * (prev_a != 0).float()
 
         if self.visited_.dtype == torch.uint8:
             visited_ = self.visited_.scatter(-1, prev_a[:, :, None], 1)

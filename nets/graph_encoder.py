@@ -2,6 +2,7 @@ import torch
 import numpy as np
 from torch import nn
 import math
+from utils.data_process import construct_graph_element_2
 
 
 class SkipConnection(nn.Module):
@@ -213,3 +214,37 @@ class GraphAttentionEncoder(nn.Module):
             h,  # (batch_size, graph_size, embed_dim)
             h.mean(dim=1),  # average to get embedding of graph, (batch_size, embed_dim)
         )
+
+
+from torch_geometric.nn import HeteroConv, GCNConv, GATConv, SAGEConv
+from torch.nn import Linear
+
+class HeteroGNN(torch.nn.Module):
+    def __init__(self, hidden_channels, out_channels, num_layers, tar, heads):
+        super(HeteroGNN, self).__init__()
+
+        self.convs = torch.nn.ModuleList()
+        for _ in range(num_layers):
+            conv = HeteroConv({
+                ('item', 'to', 'worker'): GATConv((-1, -1), hidden_channels, heads=heads, add_self_loops=False),
+                ('worker', 'deal', 'item'): GATConv((-1, -1), hidden_channels, heads=heads, add_self_loops=False)
+            }, aggr='sum')
+            self.convs.append(conv)
+
+        self.lin = Linear(hidden_channels * heads, out_channels)
+        self.tar = tar
+        self.lin_residual = Linear(2, out_channels)
+
+    def forward(self, data):
+        # 构造一个batch的图元素
+        data, batch_size = construct_graph_element_2(data)
+        x_dict, edge_index_dict, edge_attr_dict = data.x_dict, data.edge_index_dict, data.edge_attr_dict
+        for conv in self.convs:
+            x_dict_conv = conv(x_dict, edge_index_dict, edge_attr_dict)
+            x_dict_conv = {key: x.relu() for key, x in x_dict_conv.items()}
+        out = self.lin(x_dict_conv[self.tar]) + self.lin_residual(x_dict[self.tar])
+        out = out.view(batch_size, -1, out.shape[-1])
+        out = torch.concat((torch.zeros(batch_size, 1, out.shape[-1]), out), dim=1)
+
+        return out
+

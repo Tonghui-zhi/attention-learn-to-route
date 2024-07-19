@@ -3,13 +3,14 @@ from torch import nn
 from torch.utils.checkpoint import checkpoint
 import math
 from typing import NamedTuple
+
+from utils.data_process import construct_graph_element_
 from utils.tensor_functions import compute_in_batches
 
-from nets.graph_encoder import GraphAttentionEncoder
+from nets.graph_encoder import GraphAttentionEncoder, HeteroGNN
 from torch.nn import DataParallel
 from utils.beam_search import CachedLookup
 from utils.functions import sample_many
-
 
 def set_decode_type(model, decode_type):
     if isinstance(model, DataParallel):
@@ -94,8 +95,8 @@ class AttentionModel(nn.Module):
         elif self.is_kf:  # kf
             self.init_embed_depot = nn.Linear(1, embedding_dim)
 
-            step_context_dim = embedding_dim + 1
-            node_dim = 10 * 2  # 10个车的容量+10个车和需求的距离
+            step_context_dim = embedding_dim + 2 # 当前步的车辆id和当前步车辆的剩余容量，再加一个当前的length?
+            node_dim = 10 * 1  # 10个车的容量+10个车和需求的距离
         else:  # TSP
             assert problem.NAME == "tsp", "Unsupported problem: {}".format(problem.NAME)
             step_context_dim = 2 * embedding_dim  # Embedding of first and last node
@@ -113,6 +114,12 @@ class AttentionModel(nn.Module):
             n_layers=self.n_encode_layers,
             normalization=normalization
         )
+
+        # self.embedder = HeteroGNN(hidden_channels=hidden_dim,
+        #                           out_channels=embedding_dim,
+        #                           num_layers=self.n_encode_layers,
+        #                           tar='item',
+        #                           heads=n_heads)
 
         # For each node we compute (glimpse key, glimpse value, logit key) so 3 * embedding_dim
         self.project_node_embeddings = nn.Linear(embedding_dim, 3 * embedding_dim, bias=False)
@@ -139,7 +146,19 @@ class AttentionModel(nn.Module):
             embeddings, _ = checkpoint(self.embedder, self._init_embed(input))
         else:
             embeddings, _ = self.embedder(self._init_embed(input))
-
+        # dataset, dataloader = construct_graph_element_(input)
+        #
+        # for batch in dataloader:
+        #     embeddings = self.embedder(batch)
+        #     embeddings = torch.concat((torch.zeros(1, 1, self.embedding_dim), embeddings), dim=1)
+        #
+        # embeddings_per_instance = []
+        # for instance in dataset.data_list:
+        #     embeddings = self.embedder(instance)
+        #     embeddings_per_instance.append(embeddings)
+        # embeddings = torch.concat(embeddings_per_instance, dim=0)
+        # embeddings = torch.concat((torch.zeros(len(dataset.data_list), 1, self.embedding_dim), embeddings), dim=1)
+        # embeddings = self.embedder(input)
         _log_p, pi = self._inner(input, embeddings)
 
         cost, mask = self.problem.get_costs(input, pi)
@@ -233,10 +252,9 @@ class AttentionModel(nn.Module):
             return torch.cat(
                 (
                     self.init_embed_depot(torch.zeros(size=(input['deal_time'].size(0), 1)))[:, None, :],
-                    self.init_embed(torch.cat((
-                        input['deal_time'],
-                        vehicle_tensor
-                    ), -1))
+                    self.init_embed(
+                        input['deal_time']
+                    )
                 ),
                 1
             )
@@ -309,6 +327,7 @@ class AttentionModel(nn.Module):
             lambda input: self._inner(*input),  # Need to unpack tuple into arguments
             lambda input, pi: self.problem.get_costs(input[0], pi),  # Don't need embeddings as input to get_costs
             (input, self.embedder(self._init_embed(input))[0]),  # Pack input with embeddings (additional input)
+            # (input, self.embedder(input)),  # Pack input with embeddings (additional input)
             batch_rep, iter_rep
         )
 
@@ -451,9 +470,11 @@ class AttentionModel(nn.Module):
                 # i.e. we actually want embeddings[:, 0, :][:, None, :] which is equivalent
                 return torch.cat(
                     (
-                        embeddings[:, 0:1, :].expand(batch_size, num_steps, embeddings.size(-1)),
+                        torch.zeros(size=(batch_size, num_steps, embeddings.size(-1))),
                         # used capacity is 0 after visiting depot
-                        self.problem.VEHICLE_CAPACITY - torch.zeros_like(state.used_capacity[:, :, None])
+                        state.vehicle_capacity[state.vehicle_id.type(torch.int64)] - torch.zeros_like(state.used_capacity[:, :, None]),
+                        state.vehicle_id[:, None, None],
+                        # state.used_capacity[:, None, None]
                     ),
                     -1
                 )
@@ -467,7 +488,9 @@ class AttentionModel(nn.Module):
                             .view(batch_size, num_steps, 1)
                             .expand(batch_size, num_steps, embeddings.size(-1))
                         ).view(batch_size, num_steps, embeddings.size(-1)),
-                        self.problem.VEHICLE_CAPACITY - state.used_capacity[:, :, None]
+                        (state.vehicle_capacity[torch.arange(batch_size).unsqueeze(1), state.vehicle_id.unsqueeze(1).type(torch.int64)] - state.used_capacity)[:, :, None],
+                        state.vehicle_id[:, None, None],
+                        # state.used_capacity[:, None, None]
                     ),
                     -1
                 )
