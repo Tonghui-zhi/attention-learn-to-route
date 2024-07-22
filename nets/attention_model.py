@@ -108,18 +108,18 @@ class AttentionModel(nn.Module):
 
         self.init_embed = nn.Linear(node_dim, embedding_dim)
 
-        self.embedder = GraphAttentionEncoder(
-            n_heads=n_heads,
-            embed_dim=embedding_dim,
-            n_layers=self.n_encode_layers,
-            normalization=normalization
-        )
+        # self.embedder = GraphAttentionEncoder(
+        #     n_heads=n_heads,
+        #     embed_dim=embedding_dim,
+        #     n_layers=self.n_encode_layers,
+        #     normalization=normalization
+        # )
 
-        # self.embedder = HeteroGNN(hidden_channels=hidden_dim,
-        #                           out_channels=embedding_dim,
-        #                           num_layers=self.n_encode_layers,
-        #                           tar='item',
-        #                           heads=n_heads)
+        self.embedder = HeteroGNN(hidden_channels=hidden_dim,
+                                  out_channels=embedding_dim,
+                                  num_layers=self.n_encode_layers,
+                                  tar='item',
+                                  heads=n_heads)
 
         # For each node we compute (glimpse key, glimpse value, logit key) so 3 * embedding_dim
         self.project_node_embeddings = nn.Linear(embedding_dim, 3 * embedding_dim, bias=False)
@@ -142,10 +142,10 @@ class AttentionModel(nn.Module):
         :return:
         """
 
-        if self.checkpoint_encoder and self.training:  # Only checkpoint if we need gradients
-            embeddings, _ = checkpoint(self.embedder, self._init_embed(input))
-        else:
-            embeddings, _ = self.embedder(self._init_embed(input))
+        # if self.checkpoint_encoder and self.training:  # Only checkpoint if we need gradients
+        #     embeddings, _ = checkpoint(self.embedder, self._init_embed(input))
+        # else:
+        #     embeddings, _ = self.embedder(self._init_embed(input))
         # dataset, dataloader = construct_graph_element_(input)
         #
         # for batch in dataloader:
@@ -158,7 +158,7 @@ class AttentionModel(nn.Module):
         #     embeddings_per_instance.append(embeddings)
         # embeddings = torch.concat(embeddings_per_instance, dim=0)
         # embeddings = torch.concat((torch.zeros(len(dataset.data_list), 1, self.embedding_dim), embeddings), dim=1)
-        # embeddings = self.embedder(input)
+        embeddings = self.embedder(input)
         _log_p, pi = self._inner(input, embeddings)
 
         cost, mask = self.problem.get_costs(input, pi)
@@ -326,8 +326,8 @@ class AttentionModel(nn.Module):
         return sample_many(
             lambda input: self._inner(*input),  # Need to unpack tuple into arguments
             lambda input, pi: self.problem.get_costs(input[0], pi),  # Don't need embeddings as input to get_costs
-            (input, self.embedder(self._init_embed(input))[0]),  # Pack input with embeddings (additional input)
-            # (input, self.embedder(input)),  # Pack input with embeddings (additional input)
+            # (input, self.embedder(self._init_embed(input))[0]),  # Pack input with embeddings (additional input)
+            (input, self.embedder(input)),  # Pack input with embeddings (additional input)
             batch_rep, iter_rep
         )
 
