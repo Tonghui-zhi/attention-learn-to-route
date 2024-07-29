@@ -234,6 +234,7 @@ class HeteroGNN(torch.nn.Module):
         self.lin = Linear(hidden_channels * heads, out_channels)
         self.tar = tar
         self.lin_residual = Linear(2, out_channels)
+        self.batch_norm = Normalization(embed_dim=hidden_channels, normalization='batch')
 
     def forward(self, data):
         # 构造一个batch的图元素
@@ -243,6 +244,7 @@ class HeteroGNN(torch.nn.Module):
             x_dict_conv = conv(x_dict, edge_index_dict, edge_attr_dict)
             x_dict_conv = {key: x.relu() for key, x in x_dict_conv.items()}
         out = self.lin(x_dict_conv[self.tar]) + self.lin_residual(x_dict[self.tar])
+        out = self.batch_norm(out)
         out = out.view(batch_size, -1, out.shape[-1])
         out = torch.concat((torch.zeros(batch_size, 1, out.shape[-1]), out), dim=1)
 

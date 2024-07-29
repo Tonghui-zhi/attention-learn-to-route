@@ -56,7 +56,8 @@ class KF(object):
                 deal_time = torch.cat((torch.zeros(batch_size, 1, vehicle_num), dataset['deal_time']), dim=1)
                 overall_deal_time[idx] = torch.sum(torch.stack([deal_time[idx, route, vehicle_id].sum() for vehicle_id, route in enumerate(routes_dict[idx])]))
                 finish_time_cost[idx] = torch.max(torch.stack([deal_time[idx, route, vehicle_id].sum() for vehicle_id, route in enumerate(routes_dict[idx])]))
-                final_cost[idx] = (overall_deal_time[idx] + 3 * finish_time_cost[idx])
+                # final_cost[idx] = (overall_deal_time[idx] + 3 * finish_time_cost[idx])
+                final_cost[idx] = finish_time_cost[idx]
         # 选取最长处理时长作为每批的loss, cost.shape = [batch_size, 1]
         cost = torch.stack(list(final_cost.values()), dim=0)
         # 选取总处理时长作为loss

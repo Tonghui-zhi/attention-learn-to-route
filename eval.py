@@ -196,7 +196,7 @@ if __name__ == "__main__":
                         help='Beam search (bs), Sampling (sample) or Greedy (greedy)')
     parser.add_argument('--softmax_temperature', type=parse_softmax_temperature, default=1,
                         help="Softmax temperature (sampling or bs)")
-    parser.add_argument('--model', default='outputs/kf_100/run_20240719T132446', type=str)
+    parser.add_argument('--model', default='outputs/kf_100/run_20240722T174722', type=str)
     # parser.add_argument('--model', default='outputs/kf_100/run_20240709T141034', type=str)
     parser.add_argument('--no_cuda', action='store_true', help='Disable CUDA')
     parser.add_argument('--no_progress_bar', action='store_true', help='Disable progress bar')
