@@ -1,0 +1,48 @@
+nohup: ignoring input
+2024-07-23 13:07:43.580207: I tensorflow/core/util/port.cc:113] oneDNN custom operations are on. You may see slightly different numerical results due to floating-point round-off errors from different computation orders. To turn them off, set the environment variable `TF_ENABLE_ONEDNN_OPTS=0`.
+2024-07-23 13:07:54.862121: I tensorflow/core/util/port.cc:113] oneDNN custom operations are on. You may see slightly different numerical results due to floating-point round-off errors from different computation orders. To turn them off, set the environment variable `TF_ENABLE_ONEDNN_OPTS=0`.
+{'baseline': 'rollout',
+ 'batch_size': 50,
+ 'bl_alpha': 0.05,
+ 'bl_warmup_epochs': 1,
+ 'checkpoint_encoder': False,
+ 'checkpoint_epochs': 1,
+ 'data_distribution': None,
+ 'embedding_dim': 128,
+ 'epoch_size': 1000,
+ 'epoch_start': 0,
+ 'eval_batch_size': 20,
+ 'eval_only': False,
+ 'exp_beta': 0.8,
+ 'graph_size': 120,
+ 'hidden_dim': 128,
+ 'load_path': None,
+ 'log_dir': 'logs',
+ 'log_step': 50,
+ 'lr_critic': 0.0001,
+ 'lr_decay': 1.0,
+ 'lr_model': 0.0001,
+ 'max_grad_norm': 1.0,
+ 'model': 'attention',
+ 'n_encode_layers': 3,
+ 'n_epochs': 100,
+ 'no_cuda': False,
+ 'no_progress_bar': False,
+ 'no_tensorboard': False,
+ 'normalization': 'batch',
+ 'output_dir': 'outputs',
+ 'problem': 'kf',
+ 'resume': None,
+ 'run_name': 'run_20240723T130826',
+ 'save_dir': 'outputs\\kf_120\\run_20240723T130826',
+ 'seed': 1234,
+ 'shrink_size': None,
+ 'tanh_clipping': 10.0,
+ 'use_cuda': False,
+ 'val_dataset': None,
+ 'val_size': 20}
+Evaluating baseline model on evaluation dataset
+  0%|          | 0/1 [00:00<?, ?it/s]100%|¨€¨€¨€¨€¨€¨€¨€¨€¨€¨€| 1/1 [00:06<00:00,  6.66s/it]100%|¨€¨€¨€¨€¨€¨€¨€¨€¨€¨€| 1/1 [00:06<00:00,  6.66s/it]
+Start train epoch 0, lr=0.0001 for run run_20240723T130826
+  0%|          | 0/20 [00:00<?, ?it/s]2024-07-23 13:09:07.585210: I tensorflow/core/util/port.cc:113] oneDNN custom operations are on. You may see slightly different numerical results due to floating-point round-off errors from different computation orders. To turn them off, set the environment variable `TF_ENABLE_ONEDNN_OPTS=0`.
+2024-07-23 13:09:24.806775: I tensorflow/core/util/port.cc:113] oneDNN custom operations are on. You may see slightly different numerical results due to floating-point round-off errors from different computation orders. To turn them off, set the environment variable `TF_ENABLE_ONEDNN_OPTS=0`.
